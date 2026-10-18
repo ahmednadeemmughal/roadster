@@ -105,13 +105,48 @@ for(let i=0;i<samples;i+=40){
 // Detailed stylized roadster model, with shaped fenders, hood, cabin, glass and lighting.
 const car=new THREE.Group();scene.add(car);
 const chassis=new THREE.Group();car.add(chassis);
-box(chassis,[1.88,.36,4.35],mats.body,[0,.68,0]);
-box(chassis,[1.98,.2,2.0],mats.body,[0,.77,-1.0]);
-box(chassis,[1.72,.16,1.08],mats.bodyDark,[0,.79,1.48]);
-box(chassis,[1.48,.43,1.65],mats.glass,[0,1.04,.05]);
-box(chassis,[1.58,.12,1.75],mats.body,[0,1.29,.05]);
-box(chassis,[1.62,.08,.18],mats.dark,[0,1.36,-.84]);
-box(chassis,[1.65,.08,.18],mats.dark,[0,1.36,.91]);
+// Low, tapered body shell built as a loft rather than a single rectangular block.
+function makeBody(){
+  const stations=[
+    {z:-2.18,w:.64,b:.48,t:.65,roof:.58},
+    {z:-1.82,w:.88,b:.47,t:.78,roof:.82},
+    {z:-1.20,w:.96,b:.46,t:.86,roof:.94},
+    {z:-.45,w:.91,b:.46,t:.80,roof:.89},
+    {z:.55,w:.83,b:.46,t:.78,roof:.83},
+    {z:1.35,w:.94,b:.46,t:.75,roof:.88},
+    {z:1.92,w:.88,b:.47,t:.66,roof:.79},
+    {z:2.16,w:.69,b:.49,t:.60,roof:.62}
+  ];
+  const vertices=[],indices=[];
+  for(const s of stations){
+    vertices.push(-s.w,s.b,s.z, s.w,s.b,s.z, s.roof,s.t,s.z, -s.roof,s.t,s.z);
+  }
+  for(let i=0;i<stations.length-1;i++){
+    const a=i*4,b=a+4;
+    for(let j=0;j<4;j++){const k=(j+1)%4;indices.push(a+j,a+k,b+j,a+k,b+k,b+j);}
+  }
+  indices.push(0,1,2,0,2,3);
+  const last=(stations.length-1)*4;indices.push(last,last+2,last+1,last,last+3,last+2);
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));g.setIndex(indices);g.computeVertexNormals();
+  const body=mesh(g,mats.body,chassis);body.material.side=THREE.DoubleSide;
+}
+makeBody();
+// Separate sculpted hood, rear deck and dark lower aero lip add recognisable sports-car proportions.
+box(chassis,[1.48,.07,1.05],mats.body,[0,.86,-1.36]);
+box(chassis,[1.47,.07,.7],mats.bodyDark,[0,.79,1.55]);
+box(chassis,[1.82,.09,.30],mats.dark,[0,.45,-2.12]);
+box(chassis,[1.78,.10,.25],mats.dark,[0,.45,2.13]);
+box(chassis,[1.38,.10,.10],mats.bodyDark,[0,1.43,.82]);
+box(chassis,[.08,.04,.52],mats.dark,[-.55,1.47,.82]);
+box(chassis,[.08,.04,.52],mats.dark,[.55,1.47,.82]);
+box(chassis,[1.68,.09,.16],mats.dark,[0,1.43,.84]);
+box(chassis,[1.52,.06,.13],mats.bodyDark,[0,1.36,.84]);
+box(chassis,[1.5,.06,.1],mats.dark,[0,1.32,-.89]);
+for(const x of [-.38,.38]){
+  box(chassis,[.32,.025,.55],mats.bodyDark,[x,.91,-1.43]);
+  box(chassis,[.035,.025,.55],mats.stripe,[x,.93,-1.43]);
+}
+
 // Hood sculpting, side skirts, front splitter and rear diffuser.
 box(chassis,[1.52,.07,1.0],mats.body,[0,.98,-1.42]);
 box(chassis,[2.02,.09,.42],mats.dark,[0,.47,-2.12]);
@@ -160,12 +195,11 @@ function puff(){
   item.life=.8+Math.random()*.5;item.size=.35+Math.random()*.35;item.mesh.scale.setScalar(item.size);item.mesh.visible=true;
 }
 
-// Tiny distant city silhouettes, deliberately subtle so the track stays the focus.
-const cityMat=material(0x101722,.9,.1);
-for(let i=0;i<75;i++){
-  const a=Math.random()*Math.PI*2,r=78+Math.random()*75,h=2+Math.random()*14,w=2+Math.random()*5;
-  const b=mesh(new THREE.BoxGeometry(w,h,w),cityMat,scene,[Math.cos(a)*r,h/2-0.3,Math.sin(a)*r]);
-  if(i%5===0){const win=mesh(new THREE.BoxGeometry(.05,.25,.05),mats.light,scene,[b.position.x+w/2+.03,h*.45,b.position.z]);}
+// Keep distant scenery low and well outside the driving area so it never blocks the chase camera.
+const skylineMat=material(0x101722,.95,.05);
+for(let i=0;i<54;i++){
+  const a=Math.PI*2*i/54, r=150+(i%4)*7, h=2.5+(i%7)*.7, w=3+(i%3);
+  mesh(new THREE.BoxGeometry(w,h,w),skylineMat,scene,[Math.cos(a)*r,h/2-.3,Math.sin(a)*r]);
 }
 
 let speed=0,heading=0,driftAngle=0,score=0,started=false,paused=false,cam=0,elapsed=0;
@@ -238,7 +272,7 @@ function animate(){
       puff();score+=Math.abs(speed)*Math.abs(steer)*dt*14;
     }
     $('score').textContent=Math.floor(score).toString().padStart(6,'0');
-    $('gear').textContent=speed>1?String(Math.min(6,Math.floor(speed/8)+1)):speed< -1?'R':'N';
+    $('gear').textContent=speed < -1?'R':speed > 1?String(Math.min(6,Math.floor(speed/8)+1)):'N';
     if(Math.abs(speed)>2)$('message').classList.add('hidden');
   }
   for(const p of smoke){
