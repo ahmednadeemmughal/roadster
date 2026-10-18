@@ -1,2 +1,34 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Nightline Roadster — Drift Lab</title><link rel="stylesheet" href="style.css"></head><body><div id="game"></div><header><b>NIGHTLINE</b><span id="speed">000 KM/H</span><span id="cameraName">CHASE CAM</span></header><nav class="cams"><button data-cam="0">CHASE</button><button data-cam="1">HOOD</button><button data-cam="2">COCKPIT</button><button data-cam="3">TOP</button><button data-cam="4">SIDE</button></nav><footer><button id="start">START ENGINE</button><button id="reset">RESET CAR</button><p>WASD / ARROWS DRIVE · SPACE HANDBRAKE · C CAMERA</p></footer><div class="touch"><button id="left">◀</button><button id="right">▶</button><button id="gas">GAS ▲</button><button id="brake">BRAKE</button></div><script type="module" src="main.js"></script></body></html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070a10">
+<title>Nightline Roadster — Drift Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="game" aria-label="3D roadster drifting game"></div>
+<div class="vignette"></div>
+<header class="hud">
+  <div class="brand"><span class="brand-mark">N</span><span>NIGHTLINE<small>DRIFT LAB / 01</small></span></div>
+  <div class="speed-block"><strong id="speed">000</strong><span>KM/H</span><div class="speed-line"><i id="speedLine"></i></div></div>
+  <div class="status-block"><span class="live-dot"></span><span id="cameraName">CHASE CAM</span><small id="surfaceLabel">CIRCUIT 01 · NIGHT</small></div>
+</header>
+<div class="telemetry"><div><small>DRIFT SCORE</small><strong id="score">000000</strong></div><div><small>DRIFT ANGLE</small><strong id="angle">00°</strong></div><div><small>GEAR</small><strong id="gear">N</strong></div></div>
+<nav class="cams" aria-label="Camera views">
+  <button data-cam="0" class="active">CHASE</button><button data-cam="1">HOOD</button><button data-cam="2">COCKPIT</button><button data-cam="3">TOP</button><button data-cam="4">SIDE</button>
+</nav>
+<div class="center-message" id="message"><span>DRIFT LAB</span><strong>FIND YOUR LINE.</strong><small>HOLD THE SLIDE. OWN THE NIGHT.</small></div>
+<div class="actions"><button id="start" class="primary"><span class="button-dot"></span> START ENGINE</button><button id="pause">PAUSE</button><button id="reset">RESET</button></div>
+<div class="help">WASD / ARROWS DRIVE <span>•</span> SPACE HANDBRAKE <span>•</span> C CAMERA <span>•</span> R RESET</div>
+<div class="touch">
+  <div class="touch-steer"><button id="left" aria-label="Steer left">◀</button><button id="right" aria-label="Steer right">▶</button></div>
+  <div class="touch-drive"><button id="handbrake">HANDBRAKE</button><button id="brake">BRAKE</button><button id="gas" class="primary">GAS ▲</button></div>
+</div>
+<div class="loading" id="loading"><div class="loader-mark">N</div><strong>BUILDING THE NIGHT</strong><span>LOADING CIRCUIT</span></div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
