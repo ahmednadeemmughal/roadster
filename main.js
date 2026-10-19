@@ -102,6 +102,47 @@ for(let i=0;i<samples;i+=40){
   const bulb=mesh(new THREE.SphereGeometry(.16,10,8),mats.light,scene,[p.x,6.88,p.z]);
 }
 
+// STUNT ZONE: two marked launch ramps and a working elevator platform.
+// Each feature is placed against the circuit tangent so its front faces the driving direction.
+const stuntMaterial=material(0x2a303a,.7,.35);
+const rampTopMat=material(0xff654b,.35,.35,{emissive:0x5b1008,emissiveIntensity:.65});
+const cyanMat=material(0x55d9ff,.3,.25,{emissive:0x07506b,emissiveIntensity:1.2});
+function trackHeading(t){const v=path.getTangentAt(t);return Math.atan2(-v.x,-v.z);}
+function makeRamp(t, name){
+  const p=path.getPointAt(t), group=new THREE.Group();group.position.set(p.x,.05,p.z);group.rotation.y=trackHeading(t);scene.add(group);
+  // Low wedge, inclined upward toward the forward end of the track (-Z).
+  const ramp=mesh(new THREE.BoxGeometry(8.5,.22,7.5),stuntMaterial,group,[0,.55,0]);ramp.rotation.x=.145;
+  const top=mesh(new THREE.BoxGeometry(7.9,.045,6.9),rampTopMat,group,[0,.68,-.15]);top.rotation.x=.145;
+  for(const side of [-1,1]){
+    const rail=mesh(new THREE.BoxGeometry(.16,.22,7.3),cyanMat,group,[side*4.12,.72,-.05]);rail.rotation.x=.145;
+    for(let k=0;k<4;k++)mesh(new THREE.BoxGeometry(.18,.06,.24),mats.stripe,group,[side*3.9,.88,-2.6+k*1.55]);
+  }
+  const sign=mesh(new THREE.BoxGeometry(3.6,.7,.18),mats.dark,group,[0,2.5,3.9]);
+  const signText=makeTextSprite(name);signText.position.set(0,2.52,3.78);group.add(signText);
+  return {group,t,p:p.clone(),heading:trackHeading(t),cooldown:0};
+}
+function makeTextSprite(label){
+  const c=document.createElement('canvas');c.width=512;c.height=128;const ctx=c.getContext('2d');
+  ctx.fillStyle='#0b1019';ctx.fillRect(0,0,512,128);ctx.strokeStyle='#ff684b';ctx.lineWidth=7;ctx.strokeRect(4,4,504,120);
+  ctx.font='bold 56px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffffff';ctx.fillText(label,256,65);
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;
+  return new THREE.Mesh(new THREE.PlaneGeometry(3.4,.84),new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));
+}
+const ramps=[makeRamp(.30,'JUMP RAMP'),makeRamp(.79,'BIG AIR')];
+
+// Lift platform sits flush with the road when down; pressing LIFT while parked on it raises and lowers it.
+const liftT=.58,liftPoint=path.getPointAt(liftT),liftHeading=trackHeading(liftT);
+const lift=new THREE.Group();lift.position.set(liftPoint.x,0,liftPoint.z);lift.rotation.y=liftHeading;scene.add(lift);
+const liftBase=mesh(new THREE.BoxGeometry(10.2,.42,9.2),mats.dark,lift,[0,-.14,0]);
+const liftDeck=mesh(new THREE.BoxGeometry(9.7,.24,8.7),material(0x323d4b,.35,.6),lift,[0,.10,0]);
+for(let x of [-4.5,4.5])for(let z of [-4,4]){
+  const pillar=mesh(new THREE.BoxGeometry(.22,7.4,.22),mats.barrier,lift,[x,3.5,z]);
+  mesh(new THREE.BoxGeometry(.45,.12,.45),cyanMat,lift,[x,7.25,z]);
+}
+for(let z=-3;z<=3;z+=2)mesh(new THREE.BoxGeometry(9.3,.025,.055),cyanMat,lift,[0,.235,z]);
+const liftSign=makeTextSprite('CAR LIFT');liftSign.position.set(0,5.6,-4.5);lift.add(liftSign);
+const liftState={height:0,target:0,active:false,carOn:false};
+
 // Detailed stylized roadster model, with shaped fenders, hood, cabin, glass and lighting.
 const car=new THREE.Group();scene.add(car);
 const chassis=new THREE.Group();car.add(chassis);
@@ -202,7 +243,7 @@ for(let i=0;i<54;i++){
   mesh(new THREE.BoxGeometry(w,h,w),skylineMat,scene,[Math.cos(a)*r,h/2-.3,Math.sin(a)*r]);
 }
 
-let speed=0,heading=0,driftAngle=0,score=0,started=false,paused=false,cam=0,elapsed=0;
+let speed=0,heading=0,driftAngle=0,score=0,started=false,paused=false,cam=0,elapsed=0,verticalVelocity=0,airborne=false,airTime=0,airScore=0; let lastRamp=-1;
 const keys={},touch={};
 addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
@@ -224,10 +265,22 @@ function setCam(n){
   document.querySelectorAll('[data-cam]').forEach(b=>b.classList.toggle('active',Number(b.dataset.cam)===n));
 }
 document.querySelectorAll('[data-cam]').forEach(b=>b.addEventListener('click',()=>setCam(Number(b.dataset.cam))));
+function activateLift(){
+  const local=car.position.clone().sub(lift.position).applyAxisAngle(new THREE.Vector3(0,1,0),-liftHeading);
+  if(Math.abs(local.x)<4.8&&Math.abs(local.z)<4.2&&Math.abs(speed)<13&&!airborne){
+    liftState.target=liftState.target<1?7:0;liftState.active=true;
+    $('message').classList.remove('hidden');
+    $('message').innerHTML='<span>STUNT ZONE</span><strong>'+(liftState.target>0?'LIFT ASCENDING':'LIFT DESCENDING')+'</strong><small>KEEP THE CAR ON THE PLATFORM</small>';
+  }else{
+    $('message').classList.remove('hidden');
+    $('message').innerHTML='<span>CAR LIFT</span><strong>DRIVE ONTO THE PLATFORM</strong><small>SLOW DOWN, THEN TAP LIFT</small>';
+    setTimeout(()=>{if(started&&!paused)$('message').classList.add('hidden');},1800);
+  }
+}
 function reset(){
   const p=path.getPointAt(.12);const t=path.getTangentAt(.12);
   car.position.set(p.x,.04,p.z);heading=Math.atan2(-t.x,-t.z);car.rotation.y=heading;
-  speed=0;driftAngle=0;score=0;paused=false;
+  speed=0;driftAngle=0;score=0;paused=false;verticalVelocity=0;airborne=false;airTime=0;airScore=0;car.position.y=.04;liftState.height=0;liftState.target=0;liftState.active=false;lift.position.y=0;
   $('score').textContent='000000';$('angle').textContent='00°';$('gear').textContent='N';
   $('pause').textContent='PAUSE';$('message').classList.remove('hidden');
 }
@@ -237,6 +290,8 @@ function togglePause(){
   if(paused)$('message').classList.remove('hidden');else $('message').classList.add('hidden');
 }
 $('reset').addEventListener('click',reset);
+$('liftButton')?.addEventListener('click',activateLift);
+$('jumpButton')?.addEventListener('click',()=>{if(started&&!paused&&!airborne&&Math.abs(speed)>7){verticalVelocity=7.5;airborne=true;airTime=0;}});
 $('pause').addEventListener('click',togglePause);
 $('start').addEventListener('click',()=>{
   started=true;paused=false;$('start').innerHTML='<span class="button-dot"></span> ENGINE ON';
@@ -262,6 +317,39 @@ function animate(){
     const moveAngle=heading+driftAngle;
     car.position.x+=-Math.sin(moveAngle)*speed*dt;
     car.position.z+=-Math.cos(moveAngle)*speed*dt;
+    // Ramp collision/launch: only trigger when approaching the raised end at speed.
+    for(let ri=0;ri<ramps.length;ri++){
+      const ramp=ramps[ri], local=car.position.clone().sub(ramp.p).applyAxisAngle(new THREE.Vector3(0,1,0),-ramp.heading);
+      ramp.cooldown=Math.max(0,ramp.cooldown-dt);
+      if(ramp.cooldown===0&&!airborne&&Math.abs(local.x)<3.25&&local.z>-3.8&&local.z<-1.8&&speed>11){
+        verticalVelocity=6.4+Math.min(speed*.035,2.3);airborne=true;airTime=0;ramp.cooldown=2.4;lastRamp=ri;
+        $('message').classList.remove('hidden');
+        $('message').innerHTML='<span>BIG AIR</span><strong>LAUNCH!</strong><small>STAY IN CONTROL</small>';
+      }
+    }
+    // Lift deck moves vertically; the car rides with it while inside its footprint.
+    const liftLocal=car.position.clone().sub(lift.position).applyAxisAngle(new THREE.Vector3(0,1,0),-liftHeading);
+    liftState.carOn=Math.abs(liftLocal.x)<4.25&&Math.abs(liftLocal.z)<3.75&&Math.abs(car.position.y-liftState.height-.04)<.75&&!airborne;
+    if(liftState.active){
+      liftState.height=THREE.MathUtils.damp(liftState.height,liftState.target,1.25,dt);
+      lift.position.y=liftState.height;
+      if(liftState.carOn)car.position.y=liftState.height+.04;
+      if(Math.abs(liftState.height-liftState.target)<.08){liftState.height=liftState.target;lift.position.y=liftState.height;liftState.active=false;}
+    }
+    // Airborne arc and landing; ground and lift top are collision floors.
+    if(airborne){
+      airTime+=dt;verticalVelocity-=14*dt;car.position.y+=verticalVelocity*dt;
+      car.rotation.x=THREE.MathUtils.lerp(car.rotation.x,-.10,dt*2);
+      if(car.position.y<=.04&&verticalVelocity<0){
+        car.position.y=.04;verticalVelocity=0;airborne=false;car.rotation.x=0;
+        const bonus=Math.max(0,Math.round(airTime*speed*18));score+=bonus;
+        $('message').classList.remove('hidden');
+        $('message').innerHTML='<span>LANDING</span><strong>+'+bonus+' POINTS</strong><small>KEEP DRIVING</small>';
+        setTimeout(()=>{if(started&&!paused)$('message').classList.add('hidden');},1300);
+      }
+    }else if(!liftState.carOn&&!liftState.active){
+      car.position.y=THREE.MathUtils.damp(car.position.y,.04,10,dt);
+    }
     car.rotation.y=heading;
     car.rotation.z=THREE.MathUtils.lerp(car.rotation.z,-steer*speedFactor*.045,dt*4);
     wheels.forEach(w=>{
@@ -284,8 +372,8 @@ function animate(){
   const forward=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
   const up=new THREE.Vector3(0,1,0);
   if(cam===0){
-    cameraPosition.copy(car.position).addScaledVector(forward,-9.5).add(new THREE.Vector3(0,4.2,0));
-    cameraTarget.copy(car.position).addScaledVector(forward,3.2).add(new THREE.Vector3(0,1,0));
+    cameraPosition.copy(car.position).addScaledVector(forward,-9.5).add(new THREE.Vector3(0,airborne?5.5:4.2,0));
+    cameraTarget.copy(car.position).addScaledVector(forward,3.2).add(new THREE.Vector3(0,airborne?0:1,0));
   }else if(cam===1){
     cameraPosition.copy(car.position).addScaledVector(forward,-1.0).add(new THREE.Vector3(0,1.45,0));
     cameraTarget.copy(car.position).addScaledVector(forward,18).add(new THREE.Vector3(0,.8,0));
