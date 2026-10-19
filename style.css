@@ -17,3 +17,7 @@
   .touch-steer button{width:72px;height:60px;}
   .touch-drive button{height:50px;}
 }
+
+.touch-drive #liftButton,.touch-drive #jumpButton{min-width:54px;border-color:#55d9ff;color:#a9efff;font-size:9px}
+@media(max-width:700px){.touch-drive{gap:3px}.touch-drive #liftButton,.touch-drive #jumpButton{min-width:42px;font-size:8px;padding:5px}}
+@media (pointer:coarse) and (orientation:landscape) and (min-width:701px){.touch-drive #liftButton,.touch-drive #jumpButton{min-width:52px}}
